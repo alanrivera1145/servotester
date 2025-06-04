@@ -1,63 +1,74 @@
 from gpiozero import AngularServo
-import time
-import tty
-import termios
 import sys
-import os
+import termios
+import tty
+import time
 
-# Set up GPIO pin for AngularServo
-servo = AngularServo(18, min_angle=0, max_angle=180)
-angle = 90  # Start centered
+# Configuration
+GPIO_PIN = 18  # GPIO18 (Pin 12 on RPi header)
+STEP = 5       # Angle step in degrees
+DELAY = 0.05   # Delay between input handling
+
+# Initialize servo
+servo = AngularServo(GPIO_PIN, min_angle=0, max_angle=180)
+angle = 90
 servo.angle = angle
 
-STEP = 5  # degrees per keypress
-
 def get_key():
-    """Capture keypress (including arrow keys) on Linux terminal"""
+    """
+    Reads a single keypress from the terminal (including arrow keys)
+    Linux-compatible, no keyboard module needed.
+    """
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
         tty.setcbreak(fd)
         ch1 = sys.stdin.read(1)
-        if ch1 == '\x1b':  # Arrow keys start with ESC
+        if ch1 == '\x1b':
             ch2 = sys.stdin.read(1)
             ch3 = sys.stdin.read(1)
-            return ch3
+            return ch3  # 'C' = right, 'D' = left
         else:
             return ch1
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-print("Use ← and → to move servo")
-print("Spacebar = center (90°), q = quit")
+print("Use ← and → to move the servo")
+print("Spacebar to center (90°), 'q' to quit")
 
 try:
     while True:
         key = get_key()
 
-        if key == 'C':  # → Right
+        if key == 'C':  # Right arrow
             if angle < 180:
                 angle += STEP
                 angle = min(angle, 180)
                 servo.angle = angle
-                print(f"Angle → {angle}°")
-        elif key == 'D':  # ← Left
+                print(f"→ Angle: {angle}°")
+
+        elif key == 'D':  # Left arrow
             if angle > 0:
                 angle -= STEP
                 angle = max(angle, 0)
                 servo.angle = angle
-                print(f"Angle ← {angle}°")
+                print(f"← Angle: {angle}°")
+
         elif key == ' ':  # Spacebar
             angle = 90
             servo.angle = angle
-            print("Centered at 90°")
+            print("⏺ Centered: 90°")
+
         elif key == 'q':
             print("Exiting...")
             break
 
-        time.sleep(0.05)
+        time.sleep(DELAY)
 
 except KeyboardInterrupt:
-    print("\nInterrupted.")
+    print("\nInterrupted by user.")
+
 finally:
     servo.detach()
+    print("Servo released and program exited.")
+
