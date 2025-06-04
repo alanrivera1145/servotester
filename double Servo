@@ -1,0 +1,93 @@
+import pigpio
+import time
+import sys
+import termios
+import tty
+
+# ==== CONFIG ====
+PAN_PIN = 18     # GPIO18 for left/right
+TILT_PIN = 13    # GPIO13 for up/down
+
+STEP = 100       # Pulse width step in µs
+MIN_PW = 500     # ~0°
+MAX_PW = 2500    # ~180°
+
+# Initial positions
+pan_pw = 1500
+tilt_pw = 1500
+
+# Connect to pigpio daemon
+pi = pigpio.pi()
+if not pi.connected:
+    print("❌ pigpio daemon not running.")
+    sys.exit(1)
+
+# Initialize servos
+pi.set_servo_pulsewidth(PAN_PIN, pan_pw)
+pi.set_servo_pulsewidth(TILT_PIN, tilt_pw)
+
+def get_key():
+    """Capture arrow key input in terminal."""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        ch1 = sys.stdin.read(1)
+        if ch1 == '\x1b':
+            ch2 = sys.stdin.read(1)
+            ch3 = sys.stdin.read(1)
+            return ch3
+        else:
+            return ch1
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+print("←/→ control pan servo")
+print("↑/↓ control tilt servo")
+print("SPACE = center both, 'q' = quit")
+
+try:
+    while True:
+        key = get_key()
+
+        if key == 'C':  # →
+            pan_pw = min(pan_pw + STEP, MAX_PW)
+            pi.set_servo_pulsewidth(PAN_PIN, pan_pw)
+            print(f"→ Pan: {pan_pw} µs")
+
+        elif key == 'D':  # ←
+            pan_pw = max(pan_pw - STEP, MIN_PW)
+            pi.set_servo_pulsewidth(PAN_PIN, pan_pw)
+            print(f"← Pan: {pan_pw} µs")
+
+        elif key == 'A':  # ↑
+            tilt_pw = max(tilt_pw - STEP, MIN_PW)
+            pi.set_servo_pulsewidth(TILT_PIN, tilt_pw)
+            print(f"↑ Tilt: {tilt_pw} µs")
+
+        elif key == 'B':  # ↓
+            tilt_pw = min(tilt_pw + STEP, MAX_PW)
+            pi.set_servo_pulsewidth(TILT_PIN, tilt_pw)
+            print(f"↓ Tilt: {tilt_pw} µs")
+
+        elif key == ' ':  # Center both
+            pan_pw = tilt_pw = 1500
+            pi.set_servo_pulsewidth(PAN_PIN, pan_pw)
+            pi.set_servo_pulsewidth(TILT_PIN, tilt_pw)
+            print("⏺ Centered both servos")
+
+        elif key == 'q':
+            break
+
+        time.sleep(0.05)
+
+except KeyboardInterrupt:
+    print("Interrupted.")
+
+finally:
+    # Turn off servo signals
+    pi.set_servo_pulsewidth(PAN_PIN, 0)
+    pi.set_servo_pulsewidth(TILT_PIN, 0)
+    pi.stop()
+    print("Servos released and program exited.")
+
