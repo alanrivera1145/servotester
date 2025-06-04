@@ -1,0 +1,63 @@
+from gpiozero import AngularServo
+import time
+import tty
+import termios
+import sys
+import os
+
+# Set up GPIO pin for AngularServo
+servo = AngularServo(18, min_angle=0, max_angle=180)
+angle = 90  # Start centered
+servo.angle = angle
+
+STEP = 5  # degrees per keypress
+
+def get_key():
+    """Capture keypress (including arrow keys) on Linux terminal"""
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        ch1 = sys.stdin.read(1)
+        if ch1 == '\x1b':  # Arrow keys start with ESC
+            ch2 = sys.stdin.read(1)
+            ch3 = sys.stdin.read(1)
+            return ch3
+        else:
+            return ch1
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+print("Use ← and → to move servo")
+print("Spacebar = center (90°), q = quit")
+
+try:
+    while True:
+        key = get_key()
+
+        if key == 'C':  # → Right
+            if angle < 180:
+                angle += STEP
+                angle = min(angle, 180)
+                servo.angle = angle
+                print(f"Angle → {angle}°")
+        elif key == 'D':  # ← Left
+            if angle > 0:
+                angle -= STEP
+                angle = max(angle, 0)
+                servo.angle = angle
+                print(f"Angle ← {angle}°")
+        elif key == ' ':  # Spacebar
+            angle = 90
+            servo.angle = angle
+            print("Centered at 90°")
+        elif key == 'q':
+            print("Exiting...")
+            break
+
+        time.sleep(0.05)
+
+except KeyboardInterrupt:
+    print("\nInterrupted.")
+finally:
+    servo.detach()
