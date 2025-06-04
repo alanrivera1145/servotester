@@ -1,0 +1,68 @@
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import AngularServo
+import sys
+import termios
+import tty
+import time
+
+# Setup PWM hardware backend
+factory = PiGPIOFactory()
+
+servo = AngularServo(
+    18,  # GPIO18
+    min_angle=0,
+    max_angle=180,
+    min_pulse_width=0.5/1000,
+    max_pulse_width=2.5/1000,
+    pin_factory=factory
+)
+
+angle = 90
+servo.angle = angle
+
+def get_key():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        ch1 = sys.stdin.read(1)
+        if ch1 == '\x1b':
+            ch2 = sys.stdin.read(1)
+            ch3 = sys.stdin.read(1)
+            return ch3
+        else:
+            return ch1
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+print("← and → to move | SPACE = center | q = quit")
+
+try:
+    while True:
+        key = get_key()
+
+        if key == 'C' and angle < 180:
+            angle += 5
+            servo.angle = min(angle, 180)
+            print(f"→ {angle}°")
+
+        elif key == 'D' and angle > 0:
+            angle -= 5
+            servo.angle = max(angle, 0)
+            print(f"← {angle}°")
+
+        elif key == ' ':
+            angle = 90
+            servo.angle = angle
+            print("Centered at 90°")
+
+        elif key == 'q':
+            break
+
+        time.sleep(0.05)
+
+except KeyboardInterrupt:
+    print("Stopped.")
+finally:
+    servo.detach()
+    print("Servo released.")
