@@ -9,7 +9,7 @@ import time
 factory = PiGPIOFactory()
 
 servo = AngularServo(
-    18,  # GPIO18
+    12  # GPIO18
     min_angle=0,
     max_angle=180,
     min_pulse_width=0.5/1000,
