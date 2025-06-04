@@ -1,0 +1,109 @@
+from gpiozero.pins.pigpio import PiGPIOFactory
+from gpiozero import AngularServo
+import sys
+import termios
+import tty
+import time
+
+# === Setup ===
+factory = PiGPIOFactory()
+
+# Pan servo on GPIO18 (Pin 12), Tilt servo on GPIO13 (Pin 33)
+pan_servo = AngularServo(
+    18,
+    min_angle=0,
+    max_angle=180,
+    min_pulse_width=0.5/1000,
+    max_pulse_width=2.5/1000,
+    pin_factory=factory
+)
+
+tilt_servo = AngularServo(
+    13,
+    min_angle=0,
+    max_angle=180,
+    min_pulse_width=0.5/1000,
+    max_pulse_width=2.5/1000,
+    pin_factory=factory
+)
+
+# Initial angles
+pan_angle = 90
+tilt_angle = 90
+pan_servo.angle = pan_angle
+tilt_servo.angle = tilt_angle
+
+STEP = 5
+DELAY = 0.05
+
+# === Read keyboard input (arrow key compatible) ===
+def get_key():
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        ch1 = sys.stdin.read(1)
+        if ch1 == '\x1b':  # Escape sequence
+            ch2 = sys.stdin.read(1)
+            ch3 = sys.stdin.read(1)
+            return ch3
+        else:
+            return ch1
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+# === Main Loop ===
+print("←/→ to pan | ↑/↓ to tilt | SPACE to center both | q to quit")
+
+try:
+    while True:
+        key = get_key()
+
+        if key == 'C':  # →
+            if pan_angle < 180:
+                pan_angle += STEP
+                pan_angle = min(pan_angle, 180)
+                pan_servo.angle = pan_angle
+                print(f"→ Pan: {pan_angle}°")
+
+        elif key == 'D':  # ←
+            if pan_angle > 0:
+                pan_angle -= STEP
+                pan_angle = max(pan_angle, 0)
+                pan_servo.angle = pan_angle
+                print(f"← Pan: {pan_angle}°")
+
+        elif key == 'A':  # ↑
+            if tilt_angle < 180:
+                tilt_angle += STEP
+                tilt_angle = min(tilt_angle, 180)
+                tilt_servo.angle = tilt_angle
+                print(f"↑ Tilt: {tilt_angle}°")
+
+        elif key == 'B':  # ↓
+            if tilt_angle > 0:
+                tilt_angle -= STEP
+                tilt_angle = max(tilt_angle, 0)
+                tilt_servo.angle = tilt_angle
+                print(f"↓ Tilt: {tilt_angle}°")
+
+        elif key == ' ':
+            pan_angle = tilt_angle = 90
+            pan_servo.angle = pan_angle
+            tilt_servo.angle = tilt_angle
+            print("⏺ Both servos centered at 90°")
+
+        elif key == 'q':
+            break
+
+        time.sleep(DELAY)
+
+except KeyboardInterrupt:
+    print("Interrupted.")
+
+finally:
+    pan_servo.detach()
+    tilt_servo.detach()
+    print("Servos released and program exited.")
+
+
